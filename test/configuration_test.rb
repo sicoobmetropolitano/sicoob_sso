@@ -6,7 +6,7 @@ class ConfigurationTest < Minitest::Test
   include ConfigSandbox
 
   def test_defaults
-    config = RisecodeSso::Configuration.new
+    config = SicoobSso::Configuration.new
 
     assert_equal "http://localhost:3000", config.provider_url
     assert_equal "", config.client_id
@@ -21,7 +21,7 @@ class ConfigurationTest < Minitest::Test
              "SSO_CLIENT_ID" => "myapp",
              "SSO_CLIENT_SECRET" => "shh",
              "SSO_REDIRECT_URI" => "https://app.example/sso/callback") do
-      config = RisecodeSso::Configuration.new
+      config = SicoobSso::Configuration.new
 
       assert_equal "https://tools.example", config.provider_url
       assert_equal "myapp", config.client_id
@@ -33,17 +33,17 @@ class ConfigurationTest < Minitest::Test
   def test_configure_overrides
     provisioner = ->(claims) { claims }
 
-    RisecodeSso.configure do |c|
+    SicoobSso.configure do |c|
       c.provider_url = "https://idp.test"
       c.client_id = "client"
       c.provisioner = provisioner
       c.login_path = "/sign_in"
     end
 
-    assert_equal "https://idp.test", RisecodeSso.config.provider_url
-    assert_equal "client", RisecodeSso.config.client_id
-    assert_same provisioner, RisecodeSso.config.provisioner
-    assert_equal "/sign_in", RisecodeSso.config.login_path
+    assert_equal "https://idp.test", SicoobSso.config.provider_url
+    assert_equal "client", SicoobSso.config.client_id
+    assert_same provisioner, SicoobSso.config.provisioner
+    assert_equal "/sign_in", SicoobSso.config.login_path
   end
 
   private

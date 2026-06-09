@@ -8,7 +8,7 @@ rescue LoadError
   nil
 end
 
-module RisecodeSso
+module SicoobSso
   module SessionsControllerConcern
     extend ActiveSupport::Concern if defined?(ActiveSupport::Concern)
 
@@ -21,22 +21,22 @@ module RisecodeSso
     def callback
       expected_state = session.delete(:sso_state)
       unless params[:state].present? && params[:state] == expected_state
-        return redirect_to RisecodeSso.login_path_for(self),
+        return redirect_to SicoobSso.login_path_for(self),
                            alert: "Sessão de login inválida. Tente novamente."
       end
 
       claims = IdentityProvider.exchange_code(params[:code].to_s)
-      user = RisecodeSso.config.provisioner.call(claims)
+      user = SicoobSso.config.provisioner.call(claims)
       sign_in(user)
       redirect_to(session.delete(:return_to) || "/")
-    rescue RisecodeSso::ExchangeError
-      redirect_to RisecodeSso.login_path_for(self),
+    rescue SicoobSso::ExchangeError
+      redirect_to SicoobSso.login_path_for(self),
                   alert: "Falha ao autenticar com o provedor. Tente novamente."
     end
 
     def destroy
       sign_out
-      redirect_to RisecodeSso.login_path_for(self), status: :see_other
+      redirect_to SicoobSso.login_path_for(self), status: :see_other
     end
   end
 end

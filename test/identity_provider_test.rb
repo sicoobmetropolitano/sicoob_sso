@@ -8,7 +8,7 @@ class IdentityProviderTest < Minitest::Test
 
   def setup
     super
-    RisecodeSso.configure do |c|
+    SicoobSso.configure do |c|
       c.provider_url = "https://idp.test"
       c.client_id = "myapp"
       c.client_secret = "secret"
@@ -17,7 +17,7 @@ class IdentityProviderTest < Minitest::Test
   end
 
   def test_authorize_url
-    url = RisecodeSso::IdentityProvider.authorize_url(state: "abc123")
+    url = SicoobSso::IdentityProvider.authorize_url(state: "abc123")
     uri = URI.parse(url)
     params = URI.decode_www_form(uri.query).to_h
 
@@ -31,7 +31,7 @@ class IdentityProviderTest < Minitest::Test
 
   def test_exchange_code_returns_user_claims_on_success
     stub_post_form(success_response('{"user":{"email":"a@b.com","name":"A"}}')) do |captured|
-      claims = RisecodeSso::IdentityProvider.exchange_code("the-code")
+      claims = SicoobSso::IdentityProvider.exchange_code("the-code")
 
       assert_equal({ "email" => "a@b.com", "name" => "A" }, claims)
       assert_equal URI("https://idp.test/sso/token"), captured[:uri]
@@ -43,8 +43,8 @@ class IdentityProviderTest < Minitest::Test
 
   def test_exchange_code_raises_on_non_success
     stub_post_form(failure_response) do
-      error = assert_raises(RisecodeSso::ExchangeError) do
-        RisecodeSso::IdentityProvider.exchange_code("bad-code")
+      error = assert_raises(SicoobSso::ExchangeError) do
+        SicoobSso::IdentityProvider.exchange_code("bad-code")
       end
 
       assert_match(/401/, error.message)

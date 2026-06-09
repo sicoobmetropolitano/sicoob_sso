@@ -6,7 +6,7 @@ rescue LoadError
   nil
 end
 
-module RisecodeSso
+module SicoobSso
   module Authentication
     extend ActiveSupport::Concern if defined?(ActiveSupport::Concern)
 
@@ -19,7 +19,7 @@ module RisecodeSso
     def authenticate_user!
       return if user_signed_in?
       session[:return_to] = request.fullpath if request.get?
-      redirect_to RisecodeSso.login_path_for(self), alert: "Faça login para continuar."
+      redirect_to SicoobSso.login_path_for(self), alert: "Faça login para continuar."
     end
 
     def current_user

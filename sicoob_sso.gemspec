@@ -1,18 +1,18 @@
 # frozen_string_literal: true
 
-require_relative "lib/risecode_sso/version"
+require_relative "lib/sicoob_sso/version"
 
 Gem::Specification.new do |spec|
-  spec.name = "risecode_sso"
-  spec.version = RisecodeSso::VERSION
+  spec.name = "sicoob_sso"
+  spec.version = SicoobSso::VERSION
   spec.authors = ["Fernando Menolli"]
   spec.email = ["femenolli@gmail.com"]
 
   spec.summary = "In-house SSO client (authenticate against the Tools IdP)"
-  spec.description = "Reusable client side of Risecode's in-house SSO. Provides the identity " \
+  spec.description = "Reusable client side of Sicoob's in-house SSO. Provides the identity " \
                      "provider client, a controller authentication concern, and a sessions " \
                      "controller concern to authenticate host apps against the Tools IdP."
-  spec.homepage = "https://github.com/risecode/risecode_sso"
+  spec.homepage = "https://github.com/sicoobmetropolitano/sicoob_sso"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2.0"
 

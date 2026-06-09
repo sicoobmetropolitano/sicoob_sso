@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-module RisecodeSso
+module SicoobSso
   class Configuration
     attr_accessor :provider_url, :client_id, :client_secret, :redirect_uri,
                   :provisioner, :login_path

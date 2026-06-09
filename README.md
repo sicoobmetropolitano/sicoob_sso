@@ -1,4 +1,4 @@
-# RisecodeSso
+# SicoobSso
 
 Reusable client side of Risecode's in-house Single Sign-On. The identity provider
 ("Tools") exposes `GET /sso/authorize` and `POST /sso/token`; this gem authenticates
@@ -11,23 +11,23 @@ host app owns all of those.
 ## Installation
 
 ```ruby
-gem "risecode_sso"
+gem "sicoob_sso"
 ```
 
 ## What's in the box
 
 | Component | Type | Responsibility |
 |-----------|------|----------------|
-| `RisecodeSso::Configuration` / `RisecodeSso.configure` | config | Provider URL, client credentials, redirect URI, user provisioner, login path |
-| `RisecodeSso::IdentityProvider` | module function | `authorize_url(state:)` and `exchange_code(code)` against the IdP |
-| `RisecodeSso::Authentication` | controller concern | `current_user`, `user_signed_in?`, `authenticate_user!`, `sign_in`, `sign_out`, `resume_session` (token cookie) |
-| `RisecodeSso::SessionsControllerConcern` | controller concern | `new` / `callback` / `destroy` actions for the SSO login flow |
+| `SicoobSso::Configuration` / `SicoobSso.configure` | config | Provider URL, client credentials, redirect URI, user provisioner, login path |
+| `SicoobSso::IdentityProvider` | module function | `authorize_url(state:)` and `exchange_code(code)` against the IdP |
+| `SicoobSso::Authentication` | controller concern | `current_user`, `user_signed_in?`, `authenticate_user!`, `sign_in`, `sign_out`, `resume_session` (token cookie) |
+| `SicoobSso::SessionsControllerConcern` | controller concern | `new` / `callback` / `destroy` actions for the SSO login flow |
 
 ## Configuration
 
 ```ruby
-# config/initializers/risecode_sso.rb
-RisecodeSso.configure do |c|
+# config/initializers/sicoob_sso.rb
+SicoobSso.configure do |c|
   c.provider_url   = ENV.fetch("SSO_PROVIDER_URL")   # e.g. https://tools.example
   c.client_id      = ENV.fetch("SSO_CLIENT_ID")
   c.client_secret  = ENV.fetch("SSO_CLIENT_SECRET")
@@ -74,7 +74,7 @@ end
 ### A user provisioner
 
 A callable that takes the IdP's `"user"` claims hash and returns a host `User`
-(find-or-create). Wired through `RisecodeSso.config.provisioner`.
+(find-or-create). Wired through `SicoobSso.config.provisioner`.
 
 ### Routes
 
@@ -90,7 +90,7 @@ Include the authentication concern in your base controller:
 
 ```ruby
 class ApplicationController < ActionController::Base
-  include RisecodeSso::Authentication
+  include SicoobSso::Authentication
   before_action :authenticate_user!
 end
 ```
@@ -100,7 +100,7 @@ Build the SSO sessions controller from the concern (it inherits the host's
 
 ```ruby
 class Sso::SessionsController < ApplicationController
-  include RisecodeSso::SessionsControllerConcern
+  include SicoobSso::SessionsControllerConcern
   skip_before_action :authenticate_user!, only: %i[new callback]
 end
 ```
@@ -110,14 +110,14 @@ That's the whole integration:
 - `new` generates a state nonce, stores it in the session, and redirects to the IdP.
 - `callback` verifies the returned state, exchanges the code for user claims, runs the
   provisioner, signs the user in (httponly `:session_token` cookie), and redirects to
-  the stored `return_to` (or `/`). An `RisecodeSso::ExchangeError` redirects back to
+  the stored `return_to` (or `/`). An `SicoobSso::ExchangeError` redirects back to
   the login path with an alert.
 - `destroy` signs out and redirects to the login path.
 
 ## Errors
 
-- `RisecodeSso::Error` — base error
-- `RisecodeSso::ExchangeError` — raised by `IdentityProvider.exchange_code` on a non-2xx
+- `SicoobSso::Error` — base error
+- `SicoobSso::ExchangeError` — raised by `IdentityProvider.exchange_code` on a non-2xx
   response from the IdP token endpoint
 
 ## Development
