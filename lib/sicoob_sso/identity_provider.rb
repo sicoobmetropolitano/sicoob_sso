@@ -31,5 +31,31 @@ module SicoobSso
 
       JSON.parse(response.body).fetch("user")
     end
+
+    def create_auth_request(email:)
+      response = Net::HTTP.post_form(
+        URI("#{SicoobSso.config.provider_url}/sso/auth_requests"),
+        email: email,
+        client_id: SicoobSso.config.client_id,
+        client_secret: SicoobSso.config.client_secret
+      )
+
+      unless response.is_a?(Net::HTTPSuccess)
+        raise ExchangeError, "SSO auth_request failed: #{response.code}"
+      end
+
+      JSON.parse(response.body).fetch("request_id")
+    end
+
+    def poll_auth_request(request_id:)
+      uri = URI("#{SicoobSso.config.provider_url}/sso/auth_requests/#{request_id}")
+      response = Net::HTTP.get_response(uri)
+
+      unless response.is_a?(Net::HTTPSuccess)
+        raise ExchangeError, "SSO poll failed: #{response.code}"
+      end
+
+      JSON.parse(response.body)
+    end
   end
 end

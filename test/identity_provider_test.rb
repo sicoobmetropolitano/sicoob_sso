@@ -51,6 +51,47 @@ class IdentityProviderTest < Minitest::Test
     end
   end
 
+  def test_create_auth_request_returns_request_id
+    stub_post_form(success_response('{"request_id":"tok-123"}')) do |captured|
+      request_id = SicoobSso::IdentityProvider.create_auth_request(email: "user@example.com")
+
+      assert_equal "tok-123", request_id
+      assert_equal URI("https://idp.test/sso/auth_requests"), captured[:uri]
+      assert_equal "user@example.com", captured[:params][:email]
+      assert_equal "myapp", captured[:params][:client_id]
+      assert_equal "secret", captured[:params][:client_secret]
+    end
+  end
+
+  def test_create_auth_request_raises_on_non_success
+    stub_post_form(failure_response) do
+      error = assert_raises(SicoobSso::ExchangeError) do
+        SicoobSso::IdentityProvider.create_auth_request(email: "user@example.com")
+      end
+
+      assert_match(/401/, error.message)
+    end
+  end
+
+  def test_poll_auth_request_returns_parsed_hash
+    body = '{"status":"approved","code":"the-code"}'
+    stub_get_response(success_response(body)) do
+      result = SicoobSso::IdentityProvider.poll_auth_request(request_id: "tok-123")
+
+      assert_equal({ "status" => "approved", "code" => "the-code" }, result)
+    end
+  end
+
+  def test_poll_auth_request_raises_on_non_success
+    stub_get_response(failure_response) do
+      error = assert_raises(SicoobSso::ExchangeError) do
+        SicoobSso::IdentityProvider.poll_auth_request(request_id: "tok-123")
+      end
+
+      assert_match(/401/, error.message)
+    end
+  end
+
   private
     def success_response(body)
       res = Net::HTTPOK.new("1.1", "200", "OK")
@@ -80,6 +121,20 @@ class IdentityProviderTest < Minitest::Test
     ensure
       verbose, $VERBOSE = $VERBOSE, nil
       Net::HTTP.singleton_class.send(:define_method, :post_form, original)
+      $VERBOSE = verbose
+    end
+
+    def stub_get_response(response)
+      original = Net::HTTP.method(:get_response)
+      verbose, $VERBOSE = $VERBOSE, nil
+      Net::HTTP.singleton_class.send(:define_method, :get_response) do |_uri|
+        response
+      end
+      $VERBOSE = verbose
+      yield
+    ensure
+      verbose, $VERBOSE = $VERBOSE, nil
+      Net::HTTP.singleton_class.send(:define_method, :get_response, original)
       $VERBOSE = verbose
     end
 end
