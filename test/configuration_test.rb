@@ -14,6 +14,23 @@ class ConfigurationTest < Minitest::Test
     assert_equal "http://localhost:3000/sso/callback", config.redirect_uri
     assert_nil config.provisioner
     assert_equal "/login", config.login_path
+    assert_equal :redirect, config.auth_strategy
+  end
+
+  def test_auth_strategy_reads_from_env
+    with_env("SSO_AUTH_STRATEGY" => "push_approval") do
+      config = SicoobSso::Configuration.new
+
+      assert_equal :push_approval, config.auth_strategy
+    end
+  end
+
+  def test_auth_strategy_configurable
+    SicoobSso.configure do |c|
+      c.auth_strategy = :push_approval
+    end
+
+    assert_equal :push_approval, SicoobSso.config.auth_strategy
   end
 
   def test_reads_from_env
