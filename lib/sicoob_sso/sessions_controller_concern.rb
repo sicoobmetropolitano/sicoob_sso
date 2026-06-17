@@ -13,9 +13,41 @@ module SicoobSso
     extend ActiveSupport::Concern if defined?(ActiveSupport::Concern)
 
     def new
+      return if SicoobSso.config.auth_strategy == :push_approval
+
       state = SecureRandom.hex(16)
       session[:sso_state] = state
       redirect_to IdentityProvider.authorize_url(state: state), allow_other_host: true
+    end
+
+    def create
+      request_id = IdentityProvider.create_auth_request(email: params[:email].to_s)
+      session[:sso_request_id] = request_id
+      redirect_to sso_waiting_path
+    rescue SicoobSso::ExchangeError
+      redirect_to SicoobSso.login_path_for(self), alert: "Não foi possível iniciar o login. Tente novamente."
+    end
+
+    def waiting
+      redirect_to SicoobSso.login_path_for(self) if session[:sso_request_id].blank?
+    end
+
+    def status
+      request_id = session[:sso_request_id]
+      return render(json: { status: "expired" }) if request_id.blank?
+
+      result = IdentityProvider.poll_auth_request(request_id: request_id)
+
+      if result["status"] == "approved"
+        claims = IdentityProvider.exchange_code(result["code"])
+        sign_in(SicoobSso.config.provisioner.call(claims))
+        session.delete(:sso_request_id)
+        render json: { status: "approved", redirect_to: (session.delete(:return_to) || "/") }
+      else
+        render json: { status: result["status"] }
+      end
+    rescue SicoobSso::ExchangeError
+      render json: { status: "error" }
     end
 
     def callback
