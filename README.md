@@ -3,9 +3,9 @@
 Reusable client side of Sicoob's in-house Single Sign-On. The identity provider
 ("Tools") authenticates users; this gem authenticates a host Rails app against it.
 
-This is a plain gem — modules, a configuration object, and two controller concerns.
-It is **not** a Rails engine: it ships no models, migrations, routes, or views. The
-host app owns all of those.
+As of v0.3.0 this is a **Rails Engine**: it ships the sessions controller and views.
+The host app provides `Session`, `Current`, and a user provisioner; the gem wires up
+the routes and handles the login flow.
 
 The gem supports two login strategies, selected per host:
 
@@ -16,6 +16,9 @@ The gem supports two login strategies, selected per host:
   the IdP shows an approval request in its in-app notification center; once the user
   approves, the host exchanges the result for claims. Use this when the user can reach
   the IdP to approve (e.g. internal web apps).
+
+Switching strategies is a single config change — no controller or view scaffolding
+needed in the host app.
 
 ## Installation
 
@@ -30,7 +33,9 @@ gem "sicoob_sso", git: "https://github.com/sicoobmetropolitano/sicoob_sso.git"
 | `SicoobSso::Configuration` / `SicoobSso.configure` | config | Provider URL, client credentials, redirect URI, user provisioner, login path, **auth strategy** |
 | `SicoobSso::IdentityProvider` | module function | `authorize_url(state:)`, `exchange_code(code)` (redirect); `create_auth_request(email:)`, `poll_auth_request(request_id:)` (push-approval) |
 | `SicoobSso::Authentication` | controller concern | `current_user`, `user_signed_in?`, `authenticate_user!`, `sign_in`, `sign_out`, `resume_session` (token cookie) |
-| `SicoobSso::SessionsControllerConcern` | controller concern | login actions: `new` / `callback` / `destroy` (redirect) and `new` / `create` / `waiting` / `status` / `destroy` (push-approval) |
+| `SicoobSso::SessionsControllerConcern` | controller concern | login actions shared by all strategies |
+| `SicoobSso::SessionsController` | engine controller | engine-provided sessions controller (host can override with its own) |
+| `app/views/sicoob_sso/sessions/` | engine views | `new.html.erb` (e-mail form) and `waiting.html.erb` (polling page) — overridable by the host |
 
 ## Integration checklist (new client)
 
@@ -38,14 +43,12 @@ gem "sicoob_sso", git: "https://github.com/sicoobmetropolitano/sicoob_sso.git"
 2. Provide the host `Session` model and `Current` (see "Host requirements").
 3. Add `config/initializers/sicoob_sso.rb` with at least the `provisioner` (and
    `auth_strategy` if push-approval).
-4. Add the routes and an `Sso::SessionsController` including the concern (see your
-   strategy's section).
-5. For `:push_approval`, add the two views and the Stimulus poller.
-6. `include SicoobSso::Authentication` and `before_action :authenticate_user!` in
+4. Call `sicoob_sso_routes` in `config/routes.rb`.
+5. `include SicoobSso::Authentication` and `before_action :authenticate_user!` in
    `ApplicationController`.
-7. Register the app on the Tools IdP per environment (`rake sso:register`) and set
+6. Register the app on the Tools IdP per environment (`rake sso:register`) and set
    `SSO_CLIENT_SECRET` from its output.
-8. Set the other env vars (`SSO_PROVIDER_URL`, `SSO_CLIENT_ID`, `SSO_REDIRECT_URI`,
+7. Set the other env vars (`SSO_PROVIDER_URL`, `SSO_CLIENT_ID`, `SSO_REDIRECT_URI`,
    `SSO_AUTH_STRATEGY`) per environment.
 
 Each step is detailed below.
@@ -153,115 +156,65 @@ class ApplicationController < ActionController::Base
 end
 ```
 
-## Strategy: `:redirect`
+## Routes
 
-### Routes
-
-```ruby
-get    "/login",        to: "sso/sessions#new"
-get    "/sso/callback", to: "sso/sessions#callback"
-delete "/logout",       to: "sso/sessions#destroy"
-```
-
-### Sessions controller
+Add a single helper call to `config/routes.rb`:
 
 ```ruby
-class Sso::SessionsController < ApplicationController
-  include SicoobSso::SessionsControllerConcern
-  skip_before_action :authenticate_user!, only: %i[new callback]
+Rails.application.routes.draw do
+  sicoob_sso_routes
+  # ... your other routes
 end
 ```
 
-- `new` generates a state nonce, stores it in the session, and redirects to the IdP.
-- `callback` verifies the returned state, exchanges the code for user claims, runs the
-  provisioner, signs the user in (httponly `:session_token` cookie), and redirects to
-  the stored `return_to` (or `/`).
-- `destroy` signs out.
+This mounts all six SSO routes regardless of the active strategy:
 
-No views are needed — `new` redirects immediately.
+| Verb | Path | Action | Helper |
+|------|------|--------|--------|
+| GET | `/login` | `sicoob_sso/sessions#new` | `login_path` |
+| POST | `/login` | `sicoob_sso/sessions#create` | — |
+| GET | `/sso/waiting` | `sicoob_sso/sessions#waiting` | `sso_waiting_path` |
+| GET | `/sso/poll` | `sicoob_sso/sessions#poll` | `sso_poll_path` |
+| GET | `/sso/callback` | `sicoob_sso/sessions#callback` | — |
+| DELETE | `/logout` | `sicoob_sso/sessions#destroy` | `logout_path` |
 
-## Strategy: `:push_approval`
+For `:redirect`, the `new` action skips rendering and redirects immediately to the IdP;
+`/login` (POST), `/sso/waiting`, and `/sso/poll` are unused. For `:push_approval`,
+`/sso/callback` is unused (the IdP calls back to Tools, not to this app).
 
-The user enters their e-mail on the host; the host opens a request at the IdP and polls
-until the user approves it in the IdP's notification center.
+## Views (overridable)
 
-### Routes
+The engine ships default views for the push-approval flow:
 
-```ruby
-get    "/login",       to: "sso/sessions#new"      # renders the e-mail form
-post   "/login",       to: "sso/sessions#create"   # opens the auth request
-get    "/sso/waiting", to: "sso/sessions#waiting", as: :sso_waiting
-get    "/sso/status",  to: "sso/sessions#status",  as: :sso_status
-delete "/logout",      to: "sso/sessions#destroy"
-```
+- `app/views/sicoob_sso/sessions/new.html.erb` — a minimal e-mail-only form
+- `app/views/sicoob_sso/sessions/waiting.html.erb` — a polling page with inline JS
 
-### Sessions controller
+To override either, create the file at the same path inside the host app. Rails resolves
+host views before engine views.
 
-```ruby
-class Sso::SessionsController < ApplicationController
-  include SicoobSso::SessionsControllerConcern
-  skip_before_action :authenticate_user!, only: %i[new create waiting status callback]
+For `:redirect`, `new` redirects to the IdP immediately — no view is rendered.
 
-  # Required: ActionController::Metal already defines #status, so Rails drops it from
-  # action_methods. Re-declaring it makes the polling action routable.
-  def status = super
-end
-```
+## Flow: `:redirect`
 
-### Views (host-owned)
+1. `GET /login` → `new` generates a state nonce, stores it in the session, redirects to the IdP.
+2. IdP redirects to `GET /sso/callback` → `callback` verifies state, exchanges code for
+   claims, runs provisioner, signs in, redirects to `return_to` (or `/`).
+3. `DELETE /logout` → `destroy` signs out.
 
-`app/views/sso/sessions/new.html.erb` — an e-mail-only form that POSTs to `login_path`.
+## Flow: `:push_approval`
 
-`app/views/sso/sessions/waiting.html.erb` — a page that polls `sso_status_path` and
-navigates on approval. Wire it to a Stimulus controller:
+1. `GET /login` → `new` renders the e-mail form.
+2. `POST /login` → `create` calls `IdentityProvider.create_auth_request(email:)`, stores
+   the `request_id`, redirects to `GET /sso/waiting`.
+3. `waiting` renders a page that polls `GET /sso/poll` every 2 seconds.
+4. `poll` (JSON) calls `IdentityProvider.poll_auth_request(request_id:)`:
+   - While pending: `{ status: "pending" }`
+   - On approval: exchanges code, signs in, returns `{ status: "approved", redirect_to: ... }`
+   - Denied/expired/error: returns `{ status: "denied"|"expired"|"error" }` — the client
+     navigates back to `/login`.
 
-```erb
-<div data-controller="sso-poll"
-     data-sso-poll-url-value="<%= sso_status_path %>"
-     data-sso-poll-login-value="<%= login_path %>">
-  <p data-sso-poll-target="message">Approve the request in Tools to continue…</p>
-</div>
-```
-
-### Stimulus poller (host-owned)
-
-```javascript
-// app/javascript/controllers/sso_poll_controller.js
-import { Controller } from "@hotwired/stimulus"
-
-export default class extends Controller {
-  static values = { url: String, login: String }
-  static targets = ["message"]
-
-  connect() { this.timer = setInterval(() => this.check(), 2000) }
-  disconnect() { clearInterval(this.timer) }
-
-  async check() {
-    const res = await fetch(this.urlValue, { headers: { Accept: "application/json" } })
-    const data = await res.json()
-    if (data.status === "approved") {
-      clearInterval(this.timer)
-      window.location = data.redirect_to
-    } else if (["denied", "expired", "error"].includes(data.status)) {
-      clearInterval(this.timer)
-      window.location = this.loginValue
-    }
-  }
-}
-```
-
-### Flow
-
-- `new` renders the e-mail form (returns early without redirecting).
-- `create` calls `IdentityProvider.create_auth_request(email:)`, stores the returned
-  `request_id` in the session, and redirects to `waiting`.
-- `status` (polled as JSON) calls `IdentityProvider.poll_auth_request(request_id:)`.
-  While pending it returns `{ status: "pending" }`. On approval it exchanges the code,
-  runs the provisioner, signs in, and returns `{ status: "approved", redirect_to: ... }`.
-  Denied/expired/error are reported so the client can return to login.
-
-The IdP side (request creation, the approval notification, approve/deny, the signed
-single-use code) lives in the Tools app, not in this gem.
+The IdP side (request creation, approval notification, approve/deny, signed single-use
+code) lives in the Tools app.
 
 ## Errors
 
