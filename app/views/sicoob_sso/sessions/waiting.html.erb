@@ -1,0 +1,24 @@
+<div style="max-width:24rem;margin:4rem auto;text-align:center;">
+  <h1>Aprove o acesso no Tools</h1>
+  <p id="sicoob-sso-msg">Enviamos um pedido de aprovação. Abra o Tools e confirme para continuar…</p>
+</div>
+<script>
+  (function () {
+    var pollUrl = "<%= sso_poll_path %>";
+    var loginUrl = "<%= login_path %>";
+    var timer = setInterval(function () {
+      fetch(pollUrl, { headers: { Accept: "application/json" } })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.status === "approved") {
+            clearInterval(timer);
+            window.location = data.redirect_to;
+          } else if (["denied", "expired", "error"].indexOf(data.status) !== -1) {
+            clearInterval(timer);
+            window.location = loginUrl;
+          }
+        })
+        .catch(function () {});
+    }, 2000);
+  })();
+</script>

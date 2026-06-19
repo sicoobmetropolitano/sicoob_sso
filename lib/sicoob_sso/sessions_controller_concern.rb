@@ -32,7 +32,7 @@ module SicoobSso
       redirect_to SicoobSso.login_path_for(self) if session[:sso_request_id].blank?
     end
 
-    def status
+    def poll
       request_id = session[:sso_request_id]
       return render(json: { status: "expired" }) if request_id.blank?
 

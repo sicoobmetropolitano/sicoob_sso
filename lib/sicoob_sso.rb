@@ -5,6 +5,7 @@ require_relative "sicoob_sso/configuration"
 require_relative "sicoob_sso/identity_provider"
 require_relative "sicoob_sso/authentication"
 require_relative "sicoob_sso/sessions_controller_concern"
+require_relative "sicoob_sso/engine" if defined?(::Rails::Engine)
 
 module SicoobSso
   class Error < StandardError; end

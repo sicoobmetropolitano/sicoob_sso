@@ -28,5 +28,7 @@ Gem::Specification.new do |spec|
   end
   spec.bindir = "exe"
   spec.executables = spec.files.grep(%r{\Aexe/}) { |f| File.basename(f) }
-  spec.require_paths = ["lib"]
+  spec.require_paths = ["lib", "app/controllers"]
+
+  spec.add_dependency "railties", ">= 7.0"
 end
