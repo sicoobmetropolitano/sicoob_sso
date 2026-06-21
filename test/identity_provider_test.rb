@@ -30,19 +30,20 @@ class IdentityProviderTest < Minitest::Test
   end
 
   def test_exchange_code_returns_user_claims_on_success
-    stub_post_form(success_response('{"user":{"email":"a@b.com","name":"A"}}')) do |captured|
+    stub_request(success_response('{"user":{"email":"a@b.com","name":"A"}}')) do |captured|
       claims = SicoobSso::IdentityProvider.exchange_code("the-code")
 
       assert_equal({ "email" => "a@b.com", "name" => "A" }, claims)
-      assert_equal URI("https://idp.test/sso/token"), captured[:uri]
-      assert_equal "the-code", captured[:params][:code]
-      assert_equal "myapp", captured[:params][:client_id]
-      assert_equal "secret", captured[:params][:client_secret]
+      assert_equal "/sso/token", captured[:request].uri.path
+      assert_kind_of Net::HTTP::Post, captured[:request]
+      assert_equal "the-code", captured[:form]["code"]
+      assert_equal "myapp", captured[:form]["client_id"]
+      assert_equal "secret", captured[:form]["client_secret"]
     end
   end
 
   def test_exchange_code_raises_on_non_success
-    stub_post_form(failure_response) do
+    stub_request(failure_response) do
       error = assert_raises(SicoobSso::ExchangeError) do
         SicoobSso::IdentityProvider.exchange_code("bad-code")
       end
@@ -52,19 +53,20 @@ class IdentityProviderTest < Minitest::Test
   end
 
   def test_create_auth_request_returns_request_id
-    stub_post_form(success_response('{"request_id":"tok-123"}')) do |captured|
+    stub_request(success_response('{"request_id":"tok-123"}')) do |captured|
       request_id = SicoobSso::IdentityProvider.create_auth_request(email: "user@example.com")
 
       assert_equal "tok-123", request_id
-      assert_equal URI("https://idp.test/sso/auth_requests"), captured[:uri]
-      assert_equal "user@example.com", captured[:params][:email]
-      assert_equal "myapp", captured[:params][:client_id]
-      assert_equal "secret", captured[:params][:client_secret]
+      assert_equal "/sso/auth_requests", captured[:request].uri.path
+      assert_kind_of Net::HTTP::Post, captured[:request]
+      assert_equal "user@example.com", captured[:form]["email"]
+      assert_equal "myapp", captured[:form]["client_id"]
+      assert_equal "secret", captured[:form]["client_secret"]
     end
   end
 
   def test_create_auth_request_raises_on_non_success
-    stub_post_form(failure_response) do
+    stub_request(failure_response) do
       error = assert_raises(SicoobSso::ExchangeError) do
         SicoobSso::IdentityProvider.create_auth_request(email: "user@example.com")
       end
@@ -75,21 +77,49 @@ class IdentityProviderTest < Minitest::Test
 
   def test_poll_auth_request_returns_parsed_hash
     body = '{"status":"approved","code":"the-code"}'
-    stub_get_response(success_response(body)) do
+    stub_request(success_response(body)) do |captured|
       result = SicoobSso::IdentityProvider.poll_auth_request(request_id: "tok-123")
 
       assert_equal({ "status" => "approved", "code" => "the-code" }, result)
+      assert_equal "/sso/auth_requests/tok-123", captured[:request].uri.path
+      assert_kind_of Net::HTTP::Get, captured[:request]
     end
   end
 
   def test_poll_auth_request_raises_on_non_success
-    stub_get_response(failure_response) do
+    stub_request(failure_response) do
       error = assert_raises(SicoobSso::ExchangeError) do
         SicoobSso::IdentityProvider.poll_auth_request(request_id: "tok-123")
       end
 
       assert_match(/401/, error.message)
     end
+  end
+
+  def test_request_enables_tls_for_https_and_sets_timeouts
+    captured = {}
+    original = Net::HTTP.instance_method(:request)
+    verbose, $VERBOSE = $VERBOSE, nil
+    Net::HTTP.send(:define_method, :request) do |req|
+      captured[:use_ssl] = use_ssl?
+      captured[:open_timeout] = open_timeout
+      captured[:read_timeout] = read_timeout
+      res = Net::HTTPOK.new("1.1", "200", "OK")
+      res.instance_variable_set(:@read, true)
+      res.instance_variable_set(:@body, '{"status":"pending"}')
+      res
+    end
+    $VERBOSE = verbose
+
+    SicoobSso::IdentityProvider.poll_auth_request(request_id: "tok-123")
+
+    assert_equal true, captured[:use_ssl]
+    assert_equal SicoobSso::IdentityProvider::OPEN_TIMEOUT, captured[:open_timeout]
+    assert_equal SicoobSso::IdentityProvider::READ_TIMEOUT, captured[:read_timeout]
+  ensure
+    verbose, $VERBOSE = $VERBOSE, nil
+    Net::HTTP.send(:define_method, :request, original)
+    $VERBOSE = verbose
   end
 
   private
@@ -107,34 +137,23 @@ class IdentityProviderTest < Minitest::Test
       res
     end
 
-    def stub_post_form(response)
+    # Stubs Net::HTTP#request, capturing the outgoing request object and the
+    # form-encoded body (when present) so the new private helper path is exercised
+    # end-to-end without real network access.
+    def stub_request(response)
       captured = {}
-      original = Net::HTTP.method(:post_form)
+      original = Net::HTTP.instance_method(:request)
       verbose, $VERBOSE = $VERBOSE, nil
-      Net::HTTP.singleton_class.send(:define_method, :post_form) do |uri, params|
-        captured[:uri] = uri
-        captured[:params] = params
+      Net::HTTP.send(:define_method, :request) do |req|
+        captured[:request] = req
+        captured[:form] = URI.decode_www_form(req.body).to_h if req.body
         response
       end
       $VERBOSE = verbose
       yield captured
     ensure
       verbose, $VERBOSE = $VERBOSE, nil
-      Net::HTTP.singleton_class.send(:define_method, :post_form, original)
-      $VERBOSE = verbose
-    end
-
-    def stub_get_response(response)
-      original = Net::HTTP.method(:get_response)
-      verbose, $VERBOSE = $VERBOSE, nil
-      Net::HTTP.singleton_class.send(:define_method, :get_response) do |_uri|
-        response
-      end
-      $VERBOSE = verbose
-      yield
-    ensure
-      verbose, $VERBOSE = $VERBOSE, nil
-      Net::HTTP.singleton_class.send(:define_method, :get_response, original)
+      Net::HTTP.send(:define_method, :request, original)
       $VERBOSE = verbose
     end
 end

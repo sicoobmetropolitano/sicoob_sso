@@ -8,6 +8,9 @@ module SicoobSso
   module IdentityProvider
     module_function
 
+    OPEN_TIMEOUT = 5
+    READ_TIMEOUT = 10
+
     def authorize_url(state:)
       query = URI.encode_www_form(
         client_id: SicoobSso.config.client_id,
@@ -18,41 +21,44 @@ module SicoobSso
     end
 
     def exchange_code(code)
-      response = Net::HTTP.post_form(
-        URI("#{SicoobSso.config.provider_url}/sso/token"),
+      post_json("/sso/token",
         code: code,
         client_id: SicoobSso.config.client_id,
-        client_secret: SicoobSso.config.client_secret
-      )
-
-      unless response.is_a?(Net::HTTPSuccess)
-        raise ExchangeError, "SSO token exchange failed: #{response.code}"
-      end
-
-      JSON.parse(response.body).fetch("user")
+        client_secret: SicoobSso.config.client_secret).fetch("user")
     end
 
     def create_auth_request(email:)
-      response = Net::HTTP.post_form(
-        URI("#{SicoobSso.config.provider_url}/sso/auth_requests"),
+      post_json("/sso/auth_requests",
         email: email,
         client_id: SicoobSso.config.client_id,
-        client_secret: SicoobSso.config.client_secret
-      )
-
-      unless response.is_a?(Net::HTTPSuccess)
-        raise ExchangeError, "SSO auth_request failed: #{response.code}"
-      end
-
-      JSON.parse(response.body).fetch("request_id")
+        client_secret: SicoobSso.config.client_secret).fetch("request_id")
     end
 
     def poll_auth_request(request_id:)
-      uri = URI("#{SicoobSso.config.provider_url}/sso/auth_requests/#{request_id}")
-      response = Net::HTTP.get_response(uri)
+      get_json("/sso/auth_requests/#{request_id}")
+    end
 
+    def post_json(path, params)
+      request(Net::HTTP::Post, path) { |req| req.set_form_data(params) }
+    end
+
+    def get_json(path)
+      request(Net::HTTP::Get, path)
+    end
+
+    def request(verb, path)
+      uri = URI("#{SicoobSso.config.provider_url}#{path}")
+      http = Net::HTTP.new(uri.host, uri.port)
+      http.use_ssl = uri.scheme == "https"
+      http.open_timeout = OPEN_TIMEOUT
+      http.read_timeout = READ_TIMEOUT
+
+      req = verb.new(uri)
+      yield req if block_given?
+
+      response = http.request(req)
       unless response.is_a?(Net::HTTPSuccess)
-        raise ExchangeError, "SSO poll failed: #{response.code}"
+        raise ExchangeError, "SSO request to #{path} failed: #{response.code}"
       end
 
       JSON.parse(response.body)
