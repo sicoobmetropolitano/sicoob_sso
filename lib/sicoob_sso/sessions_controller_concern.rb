@@ -15,6 +15,7 @@ module SicoobSso
     def new
       return if SicoobSso.config.auth_strategy == :push_approval
 
+      flash.delete(:alert)
       state = SecureRandom.hex(16)
       session[:sso_state] = state
       redirect_to IdentityProvider.authorize_url(state: state), allow_other_host: true
