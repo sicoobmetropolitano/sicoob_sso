@@ -3,7 +3,7 @@
 module SicoobSso
   class Configuration
     attr_accessor :provider_url, :client_id, :client_secret, :redirect_uri,
-                  :provisioner, :login_path, :auth_strategy
+                  :provisioner, :login_path, :auth_strategy, :app_name
 
     def initialize
       @provider_url = ENV.fetch("SSO_PROVIDER_URL", "http://localhost:3000")
@@ -13,6 +13,7 @@ module SicoobSso
       @provisioner = nil
       @login_path = "/login"
       @auth_strategy = ENV.fetch("SSO_AUTH_STRATEGY", "redirect").to_sym
+      @app_name = ENV.fetch("SSO_APP_NAME", nil)
     end
   end
 end

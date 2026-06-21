@@ -1,8 +1,21 @@
-<div style="max-width:24rem;margin:4rem auto;">
-  <h1>Entrar</h1>
-  <%= form_with url: login_path, method: :post do |f| %>
-    <%= f.email_field :email, required: true, autofocus: true, placeholder: "seu e-mail",
-          style: "display:block;width:100%;padding:.5rem;margin:1rem 0;" %>
-    <%= f.submit "Entrar", style: "width:100%;padding:.5rem;" %>
-  <% end %>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;background:#f9fafb;font-family:system-ui,-apple-system,'Segoe UI',sans-serif;">
+  <div style="width:100%;max-width:24rem;padding:1.5rem;box-sizing:border-box;">
+    <h1 style="text-align:center;font-size:1.75rem;font-weight:700;color:#111827;margin:0 0 1.5rem;">
+      <%= SicoobSso.config.app_name.presence || "Entrar" %>
+    </h1>
+
+    <div style="background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:1.5rem;">
+      <p style="font-size:.875rem;color:#6b7280;margin:0 0 1rem;">
+        Informe seu e-mail e aprove o acesso no Tools para entrar.
+      </p>
+
+      <%= form_with url: login_path, method: :post, data: { turbo: false } do |f| %>
+        <label style="display:block;font-size:.875rem;font-weight:500;color:#111827;margin-bottom:.5rem;">E-mail</label>
+        <%= f.email_field :email, required: true, autofocus: true, placeholder: "seu e-mail",
+              style: "display:block;width:100%;padding:.625rem;border:1px solid #d1d5db;border-radius:.5rem;font-size:.875rem;margin-bottom:1rem;box-sizing:border-box;" %>
+        <%= f.submit "Entrar",
+              style: "width:100%;padding:.625rem;background:#2563eb;color:#fff;border:0;border-radius:.5rem;font-size:.875rem;font-weight:600;cursor:pointer;" %>
+      <% end %>
+    </div>
+  </div>
 </div>
