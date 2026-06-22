@@ -20,7 +20,15 @@
   (function () {
     var pollUrl = "<%= sso_poll_path %>";
     var loginUrl = "<%= login_path %>";
+    var maxAttempts = 90; // ~3 min at 2s intervals
+    var attempts = 0;
+    var msg = document.getElementById("sicoob-sso-msg");
     var timer = setInterval(function () {
+      if (++attempts > maxAttempts) {
+        clearInterval(timer);
+        if (msg) msg.textContent = "O pedido de aprovação expirou. Tente novamente.";
+        return;
+      }
       fetch(pollUrl, { headers: { Accept: "application/json" } })
         .then(function (r) { return r.json(); })
         .then(function (data) {
