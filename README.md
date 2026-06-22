@@ -44,8 +44,8 @@ gem "sicoob_sso", git: "https://github.com/sicoobmetropolitano/sicoob_sso.git"
 3. Add `config/initializers/sicoob_sso.rb` with at least the `provisioner` (and
    `auth_strategy` if push-approval).
 4. Call `sicoob_sso_routes` in `config/routes.rb`.
-5. `include SicoobSso::Authentication` and `before_action :authenticate_user!` in
-   `ApplicationController`.
+5. Add `before_action :authenticate_user!` to `ApplicationController` (the auth concern
+   is auto-included by the engine — no manual `include` needed).
 6. Register the app on the Tools IdP per environment (`rake sso:register`) and set
    `SSO_CLIENT_SECRET` from its output.
 7. Set the other env vars (`SSO_PROVIDER_URL`, `SSO_CLIENT_ID`, `SSO_REDIRECT_URI`,
@@ -150,12 +150,18 @@ A callable that takes the IdP's `"user"` claims hash and returns a host `User`
 
 ### Base controller
 
+`SicoobSso::Authentication` is auto-included into `ActionController::Base` by the engine
+(like Devise's controller helpers), so you do **not** write the `include`. You only choose
+which controllers require login with `before_action :authenticate_user!`:
+
 ```ruby
 class ApplicationController < ActionController::Base
-  include SicoobSso::Authentication
   before_action :authenticate_user!
 end
 ```
+
+(If you need it elsewhere — e.g. an `ActionController::API` base — include
+`SicoobSso::Authentication` manually there.)
 
 ## Routes
 

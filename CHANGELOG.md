@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.0
+
+- The engine now auto-includes `SicoobSso::Authentication` into
+  `ActionController::Base` (via `on_load`), so hosts no longer need
+  `include SicoobSso::Authentication` — just `before_action :authenticate_user!`.
+
 ## 1.0.0
 
 First stable release. The public API (`SicoobSso.configure`,
