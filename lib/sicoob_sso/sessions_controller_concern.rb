@@ -33,6 +33,13 @@ module SicoobSso
       redirect_to SicoobSso.login_path_for(self) if session[:sso_request_id].blank?
     end
 
+    # JSON contract consumed by waiting.html.erb's poller:
+    #   { status: "pending" | "approved" | "denied" | "expired", code? }
+    # "approved" additionally carries redirect_to. Changing these strings is a
+    # breaking change to the server<->client coupling.
+    #
+    # Safe as a GET: it acts only on the pending request bound to the current
+    # server-side session (session[:sso_request_id]), never on a client param.
     def poll
       request_id = session[:sso_request_id]
       return render(json: { status: "expired" }) if request_id.blank?
@@ -41,9 +48,8 @@ module SicoobSso
 
       if result["status"] == "approved"
         claims = IdentityProvider.exchange_code(result["code"])
-        sign_in(SicoobSso.config.provisioner.call(claims))
         session.delete(:sso_request_id)
-        render json: { status: "approved", redirect_to: (session.delete(:return_to) || "/") }
+        render json: { status: "approved", redirect_to: sso_sign_in(claims) }
       else
         render json: { status: result["status"] }
       end
@@ -59,9 +65,7 @@ module SicoobSso
       end
 
       claims = IdentityProvider.exchange_code(params[:code].to_s)
-      user = SicoobSso.config.provisioner.call(claims)
-      sign_in(user)
-      redirect_to(session.delete(:return_to) || "/")
+      redirect_to sso_sign_in(claims)
     rescue SicoobSso::ExchangeError
       redirect_to SicoobSso.login_path_for(self),
                   alert: "Falha ao autenticar com o provedor. Tente novamente."
@@ -71,5 +75,11 @@ module SicoobSso
       sign_out
       redirect_to SicoobSso.login_path_for(self), status: :see_other
     end
+
+    private
+      def sso_sign_in(claims)
+        sign_in(SicoobSso.config.provisioner.call(claims))
+        session.delete(:return_to) || "/"
+      end
   end
 end
