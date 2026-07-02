@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.1.1
+
+- The login screen (`SessionsControllerConcern#new`) now redirects an
+  already-authenticated user to `/` instead of starting the sign-in flow again.
+
 ## 1.1.0
 
 - The engine now auto-includes `SicoobSso::Authentication` into

@@ -30,6 +30,10 @@ class SsoDummyController < ActionController::Base
   def sign_in(user)
     @signed_in_user = user
   end
+
+  def user_signed_in?
+    false
+  end
 end
 
 class SessionsControllerConcernTest < ActionController::TestCase
@@ -46,6 +50,16 @@ class SessionsControllerConcernTest < ActionController::TestCase
       c.client_secret = "secret"
       c.login_path = "/login"
       c.provisioner = ->(claims) { provisioned_users << claims; "user:#{claims["email"]}" }
+    end
+  end
+
+  # --- new --------------------------------------------------------------------
+
+  def test_new_redirects_an_already_signed_in_user_to_root
+    @controller.stub(:user_signed_in?, true) do
+      get :new
+
+      assert_redirected_to "/"
     end
   end
 

@@ -13,6 +13,7 @@ module SicoobSso
     extend ActiveSupport::Concern if defined?(ActiveSupport::Concern)
 
     def new
+      return redirect_to("/") if user_signed_in?
       return if SicoobSso.config.auth_strategy == :push_approval
 
       flash.delete(:alert)
