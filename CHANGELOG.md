@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/) and the
 project adheres to [Semantic Versioning](https://semver.org/).
 
+## 1.2.0
+
+- New `:proxy` login strategy. The host renders its own e-mail + password form
+  and validates the credentials server-to-server against the IdP
+  (`POST /sso/password`), signing the user in without ever redirecting the
+  browser to the IdP. Useful when the host is publicly reachable but the IdP is
+  network-restricted (e.g. VPN-only). Adds
+  `SicoobSso::IdentityProvider.authenticate_password(email:, password:)`; the
+  default `new` view gains a password field under this strategy. `:redirect` and
+  `:push_approval` are unchanged.
+
 ## 1.1.1
 
 - The login screen (`SessionsControllerConcern#new`) now redirects an

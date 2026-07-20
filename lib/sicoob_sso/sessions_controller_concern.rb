@@ -14,7 +14,7 @@ module SicoobSso
 
     def new
       return redirect_to("/") if user_signed_in?
-      return if SicoobSso.config.auth_strategy == :push_approval
+      return if renders_login_form?
 
       flash.delete(:alert)
       state = SecureRandom.hex(16)
@@ -23,6 +23,8 @@ module SicoobSso
     end
 
     def create
+      return create_with_password if SicoobSso.config.auth_strategy == :proxy
+
       request_id = IdentityProvider.create_auth_request(email: params[:email].to_s)
       session[:sso_request_id] = request_id
       redirect_to sso_waiting_path
@@ -78,6 +80,18 @@ module SicoobSso
     end
 
     private
+      def create_with_password
+        claims = IdentityProvider.authenticate_password(email: params[:email].to_s, password: params[:password].to_s)
+        redirect_to sso_sign_in(claims)
+      rescue SicoobSso::ExchangeError
+        redirect_to SicoobSso.login_path_for(self), alert: "E-mail ou senha inválidos."
+      end
+
+      def renders_login_form?
+        strategy = SicoobSso.config.auth_strategy
+        strategy == :push_approval || strategy == :proxy
+      end
+
       def sso_sign_in(claims)
         sign_in(SicoobSso.config.provisioner.call(claims))
         session.delete(:return_to) || "/"

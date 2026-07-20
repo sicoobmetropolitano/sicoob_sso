@@ -75,6 +75,30 @@ class IdentityProviderTest < Minitest::Test
     end
   end
 
+  def test_authenticate_password_returns_user_claims
+    stub_request(success_response('{"user":{"email":"a@b.com","nome":"A"}}')) do |captured|
+      claims = SicoobSso::IdentityProvider.authenticate_password(email: "a@b.com", password: "pw")
+
+      assert_equal({ "email" => "a@b.com", "nome" => "A" }, claims)
+      assert_equal "/sso/password", captured[:request].uri.path
+      assert_kind_of Net::HTTP::Post, captured[:request]
+      assert_equal "a@b.com", captured[:form]["email"]
+      assert_equal "pw", captured[:form]["password"]
+      assert_equal "myapp", captured[:form]["client_id"]
+      assert_equal "secret", captured[:form]["client_secret"]
+    end
+  end
+
+  def test_authenticate_password_raises_on_non_success
+    stub_request(failure_response) do
+      error = assert_raises(SicoobSso::ExchangeError) do
+        SicoobSso::IdentityProvider.authenticate_password(email: "a@b.com", password: "bad")
+      end
+
+      assert_match(/401/, error.message)
+    end
+  end
+
   def test_poll_auth_request_returns_parsed_hash
     body = '{"status":"approved","code":"the-code"}'
     stub_request(success_response(body)) do |captured|

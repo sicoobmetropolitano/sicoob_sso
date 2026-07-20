@@ -6,13 +6,18 @@
 
     <div style="background:#fff;border:1px solid #e5e7eb;border-radius:.5rem;box-shadow:0 1px 3px rgba(0,0,0,.1);padding:1.5rem;">
       <p style="font-size:.875rem;color:#6b7280;margin:0 0 1rem;">
-        Informe seu e-mail e aprove o acesso no Tools para entrar.
+        <%= SicoobSso.config.auth_strategy == :proxy ? "Informe seu e-mail e senha para entrar." : "Informe seu e-mail e aprove o acesso no Tools para entrar." %>
       </p>
 
       <%= form_with url: login_path, method: :post, data: { turbo: false } do |f| %>
         <label style="display:block;font-size:.875rem;font-weight:500;color:#111827;margin-bottom:.5rem;">E-mail</label>
         <%= f.email_field :email, required: true, autofocus: true, placeholder: "seu e-mail",
               style: "display:block;width:100%;padding:.625rem;border:1px solid #d1d5db;border-radius:.5rem;font-size:.875rem;margin-bottom:1rem;box-sizing:border-box;" %>
+        <% if SicoobSso.config.auth_strategy == :proxy %>
+          <label style="display:block;font-size:.875rem;font-weight:500;color:#111827;margin-bottom:.5rem;">Senha</label>
+          <%= f.password_field :password, required: true, autocomplete: "current-password",
+                style: "display:block;width:100%;padding:.625rem;border:1px solid #d1d5db;border-radius:.5rem;font-size:.875rem;margin-bottom:1rem;box-sizing:border-box;" %>
+        <% end %>
         <%= f.submit "Entrar",
               style: "width:100%;padding:.625rem;background:#2563eb;color:#fff;border:0;border-radius:.5rem;font-size:.875rem;font-weight:600;cursor:pointer;" %>
       <% end %>

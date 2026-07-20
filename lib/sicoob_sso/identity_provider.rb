@@ -27,6 +27,14 @@ module SicoobSso
         client_secret: SicoobSso.config.client_secret).fetch("user")
     end
 
+    def authenticate_password(email:, password:)
+      post_json("/sso/password",
+        email: email,
+        password: password,
+        client_id: SicoobSso.config.client_id,
+        client_secret: SicoobSso.config.client_secret).fetch("user")
+    end
+
     def create_auth_request(email:)
       post_json("/sso/auth_requests",
         email: email,

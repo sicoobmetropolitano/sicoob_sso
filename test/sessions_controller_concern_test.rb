@@ -106,6 +106,39 @@ class SessionsControllerConcernTest < ActionController::TestCase
     end
   end
 
+  # --- proxy strategy ---------------------------------------------------------
+
+  def test_create_with_proxy_authenticates_signs_in_and_redirects
+    SicoobSso.config.auth_strategy = :proxy
+    stub_password("email" => "a@b.com") do |calls|
+      post :create, params: { email: "a@b.com", password: "pw" }, session: { return_to: "/painel" }
+
+      assert_equal [{ email: "a@b.com", password: "pw" }], calls[:authenticate_password]
+      assert_equal [{ "email" => "a@b.com" }], provisioned_users
+      assert_equal "user:a@b.com", @controller.signed_in_user
+      assert_redirected_to "/painel"
+    end
+  end
+
+  def test_create_with_proxy_redirects_to_login_on_invalid_credentials
+    SicoobSso.config.auth_strategy = :proxy
+    SicoobSso::IdentityProvider.stub(:authenticate_password, ->(email:, password:) { raise SicoobSso::ExchangeError }) do
+      post :create, params: { email: "a@b.com", password: "bad" }
+
+      assert_redirected_to "/login"
+      assert_nil @controller.signed_in_user
+    end
+  end
+
+  def test_create_without_proxy_uses_push_approval
+    stub_idp_push(create_auth_request: "req-42") do |calls|
+      post :create, params: { email: "a@b.com" }
+
+      assert_equal ["a@b.com"], calls[:create_auth_request]
+      assert_redirected_to "/sso/waiting"
+    end
+  end
+
   # --- poll dispatch ----------------------------------------------------------
 
   def test_poll_without_request_id_renders_expired
@@ -140,6 +173,26 @@ class SessionsControllerConcernTest < ActionController::TestCase
   private
     def provisioned_users
       @provisioned_users ||= []
+    end
+
+    def stub_password(claims)
+      calls = { authenticate_password: [] }
+      SicoobSso::IdentityProvider.stub(:authenticate_password, ->(email:, password:) {
+        calls[:authenticate_password] << { email: email, password: password }
+        claims
+      }) do
+        yield calls
+      end
+    end
+
+    def stub_idp_push(create_auth_request:)
+      calls = { create_auth_request: [] }
+      SicoobSso::IdentityProvider.stub(:create_auth_request, ->(email:) {
+        calls[:create_auth_request] << email
+        create_auth_request
+      }) do
+        yield calls
+      end
     end
 
     # Stubs the IdentityProvider module functions and records the args each was
